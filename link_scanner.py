@@ -1,13 +1,16 @@
 import os
 import requests
 
-# Загрузка списка вредоносных ссылок из файла
-def load_malicious_links(filename):
+# Загрузка списка вредоносных ссылок из всех текстовых файлов в папке
+def load_malicious_links(folder_path):
     links = set()
-    if os.path.exists(filename):
-        with open(filename, 'r') as file:
-            for line in file:
-                links.add(line.strip())
+    if os.path.exists(folder_path):
+        for filename in os.listdir(folder_path):
+            if filename.endswith(".txt"):
+                file_path = os.path.join(folder_path, filename)
+                with open(file_path, 'r') as file:
+                    for line in file:
+                        links.add(line.strip())
     return links
 
 # Функция для проверки ссылок
@@ -24,7 +27,8 @@ def check_links(user_links, malicious_links):
 
 # Главная функция модуля
 def main():
-    malicious_links = load_malicious_links("links.txt")
+    folder_path = "bases/links"
+    malicious_links = load_malicious_links(folder_path)
     if not malicious_links:
         print("Не найдено ни одной вредоносной ссылки для сравнения.")
         input("Нажмите Enter, чтобы выйти...")
