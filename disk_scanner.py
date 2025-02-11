@@ -23,34 +23,49 @@ def calculate_hash(file_path, hash_type):
     except Exception as e:
         return None
 
-# Загрузка списка сигнатур из файлов
-def load_signatures(filename):
-    signatures = set()
-    if os.path.exists(filename):
-        with open(filename, 'r') as file:
-            for line in file:
-                signatures.add(line.strip())
+# Загрузка списка сигнатур из всех .txt файлов в указанной директории
+def load_signatures(directory):
+    signatures = {}
+    if os.path.exists(directory):
+        for root, _, files in os.walk(directory):
+            for file in files:
+                if file.endswith('.txt'):
+                    file_path = os.path.join(root, file)
+                    with open(file_path, 'r') as f:
+                        for line in f:
+                            hash_value = line.strip()
+                            if hash_value:
+                                signatures[hash_value] = file  # Сохраняем имя файла базы
     return signatures
 
 # Проверка одного файла на наличие угроз
-def check_file(file_path, sha256_signatures, md5_signatures):
-    infected = False
+def check_file(file_path, sha256_signatures, md5_signatures, output_file):
     try:
         sha256_hash = calculate_hash(file_path, "sha256")
         if sha256_hash and sha256_hash in sha256_signatures:
             print(f"Зараженный файл найден: {file_path} (SHA-256)")
+            with open(output_file, "a") as log_file:
+                log_file.write(f"Путь: {file_path}\n")
+                log_file.write(f"Тип хэша: SHA-256\n")
+                log_file.write(f"Хэш: {sha256_hash}\n")
+                log_file.write(f"Файл базы: {sha256_signatures[sha256_hash]}\n\n")  # Добавляем имя файла базы
             return True
         
         md5_hash = calculate_hash(file_path, "md5")
         if md5_hash and md5_hash in md5_signatures:
             print(f"Зараженный файл найден: {file_path} (MD5)")
+            with open(output_file, "a") as log_file:
+                log_file.write(f"Путь: {file_path}\n")
+                log_file.write(f"Тип хэша: MD5\n")
+                log_file.write(f"Хэш: {md5_hash}\n")
+                log_file.write(f"Местоположение в базе: {md5_signatures[md5_hash]}\n\n")  # Добавляем имя файла базы
             return True
     except Exception as e:
         print(f"Ошибка при проверке файла {file_path}: {e}")
-    return infected
+    return False
 
 # Функция для сканирования архива
-def scan_archive(archive_path, sha256_signatures, md5_signatures, temp_dir="temp"):
+def scan_archive(archive_path, sha256_signatures, md5_signatures, output_file, temp_dir="temp"):
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
 
@@ -68,7 +83,7 @@ def scan_archive(archive_path, sha256_signatures, md5_signatures, temp_dir="temp
         for root, _, files in os.walk(temp_dir):
             for file in files:
                 file_path = os.path.join(root, file)
-                if check_file(file_path, sha256_signatures, md5_signatures):
+                if check_file(file_path, sha256_signatures, md5_signatures, output_file):
                     print(f"Обнаружен зараженный файл в архиве: {file_path}")
 
     except Exception as e:
@@ -84,7 +99,6 @@ def scan_archive(archive_path, sha256_signatures, md5_signatures, temp_dir="temp
 
 # Основная функция сканирования
 def scan_directory(directory, sha256_signatures, md5_signatures, output_file="infected_files.txt"):
-    infected_files_set = set()
     total_files = sum(len(files) for _, _, files in os.walk(directory))
     print(f"Сканирование директории: {directory}")
     print(f"Общее количество файлов для сканирования: {total_files}")
@@ -100,13 +114,10 @@ def scan_directory(directory, sha256_signatures, md5_signatures, output_file="in
 
                 # Если файл является архивом, сканируем его содержимое
                 if file.lower().endswith(('.zip', '.rar', '.7z', '.tar', '.gz')):
-                    scan_archive(file_path, sha256_signatures, md5_signatures)
+                    scan_archive(file_path, sha256_signatures, md5_signatures, output_file)
                 else:
                     # Иначе проверяем сам файл
-                    if check_file(file_path, sha256_signatures, md5_signatures):
-                        infected_files_set.add(file_path)
-                        with open(output_file, "a") as file:
-                            file.write(f"Файл: {file_path}\n")
+                    check_file(file_path, sha256_signatures, md5_signatures, output_file)
 
             except Exception as e:
                 print(f"Ошибка при обработке файла {file_path}: {e}")
@@ -142,8 +153,8 @@ def main():
         return
     
     selected_drive = select_drive(drives)
-    sha256_signatures = load_signatures("sha256.txt")
-    md5_signatures = load_signatures("md5.txt")
+    sha256_signatures = load_signatures("bases/sha256")
+    md5_signatures = load_signatures("bases/md5")
 
     if not sha256_signatures and not md5_signatures:
         print("Не найдено ни одной сигнатуры для сканирования.")
